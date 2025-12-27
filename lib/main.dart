@@ -75,14 +75,66 @@ class RandomNumberScreen extends StatelessWidget {
 
   final ValueNotifier<List<String>> areaList;
 
+  Future<void> _showAreaPicker(BuildContext context) async {
+    final areas = areaList.value;
+    if (areas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega al menos un área para continuar')),
+      );
+      return;
+    }
+
+    final selectedIndex = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Elige un área'),
+          children: [
+            SizedBox(
+              width: double.maxFinite,
+              height: 320,
+              child: ListView.separated(
+                itemCount: areas.length,
+                separatorBuilder: (context, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    title: Text(areas[index]),
+                    onTap: () => Navigator.of(context).pop(index),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedIndex == null) return;
+
+    if (!context.mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TimerScreen(
+          selectedIndex: selectedIndex,
+          areaList: areaList,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hagamos quehacer'),
         actions: [
-          IconButton(
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
             icon: const Icon(Icons.settings_outlined),
+            label: const Text('Áreas y Tareas'),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -90,7 +142,6 @@ class RandomNumberScreen extends StatelessWidget {
                 ),
               );
             },
-            tooltip: 'Adminsitrar áreas y actividades',
           ),
         ],
       ),
@@ -134,6 +185,16 @@ class RandomNumberScreen extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.list_alt_outlined),
+                label: const Text('Elegir'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () => _showAreaPicker(context),
               ),
             ],
           ),

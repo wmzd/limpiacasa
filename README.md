@@ -1,16 +1,21 @@
 # limpiacasa
 
-App Flutter para asignar áreas de limpieza al azar y llevar control rápido del tiempo y registros.
+App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y llevar control rápido del tiempo y registros.
 
 ## Funcionalidad
 
-- Pantalla inicial: muestra “Descubre tu destino”, elige un área al azar de la lista actual y permite abrir Configuración.
+- Pantalla inicial: muestra “Vamos a empezar”, permite seleccionar un área al azar con “Dame una tarea” o elegirla manualmente con “Elegir”, y abre Configuración (Áreas y Tareas).
 - Pantalla de temporizador:
 	- Muestra el área elegida y asigna duración aleatoria (5/7/10/12/15 min), con opción de cambiarla.
 	- Controles de iniciar/reiniciar y detener, con alarma del sistema al finalizar.
 	- Botón “Dame otra área” marca la tarea como SALTADO y selecciona otra área aleatoria.
-	- Botón “Trabajo Terminado” guarda un registro COMPLETADO; se muestran las últimas 10 entradas del área actual con fecha/hora.
+	- Botón “Trabajo Terminado” guarda un registro COMPLETADO, vuelve a la pantalla inicial y se muestran las últimas 10 entradas del área actual con fecha/hora.
 - Configuración: agregar, renombrar o borrar áreas. Listas e historiales se guardan en el dispositivo (SharedPreferences). Áreas por defecto: Sala, Comedor, Cocina, Baño, Cuarto, Afuera, Patio.
+
+## Novedades 1.1.0+13
+
+- Selector manual de área desde la pantalla inicial (“Elegir”).
+- Al completar un trabajo, regresa automáticamente a la pantalla inicial.
 
 ## Cómo correr
 
