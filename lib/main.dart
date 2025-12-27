@@ -81,6 +81,26 @@ class TimerScreen extends StatefulWidget {
 
 class _TimerScreenState extends State<TimerScreen> {
   static const _durations = [5, 7, 10, 12, 15];
+  static const _areas = [
+    'Afuera',
+    'Cuarto Tere',
+    'Cuarto',
+    'Recibidor',
+    'Patio Abajo',
+    'Hamaca',
+    'Comedor',
+    'Baño abajo',
+    'Bar',
+    'Cocina',
+    'Patio arriba',
+    'Sala Arriba',
+    'Bodega',
+    'Baño Arriba',
+    'Hotel',
+    'Oficina',
+    'Pasillo',
+    'Escaleras',
+  ];
   int _selectedMinutes = _durations.first;
   Timer? _timer;
   int _remainingSeconds = 0;
@@ -139,6 +159,12 @@ class _TimerScreenState extends State<TimerScreen> {
     SystemSound.play(SystemSoundType.alert);
   }
 
+  String _areaName() {
+    final index = widget.selectedNumber - 1;
+    if (index < 0 || index >= _areas.length) return 'Área desconocida';
+    return _areas[index];
+  }
+
   int _pickRandomDuration() {
     final random = Random();
     return _durations[random.nextInt(_durations.length)];
@@ -180,6 +206,11 @@ class _TimerScreenState extends State<TimerScreen> {
                   color: theme.colorScheme.onPrimaryContainer,
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _areaName(),
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 32),
             Align(
