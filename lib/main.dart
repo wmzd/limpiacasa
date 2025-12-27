@@ -1,39 +1,73 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const LimpiacasaApp());
 }
 
-class LimpiacasaApp extends StatelessWidget {
+const _defaultAreas = [
+  'Afuera',
+  'Cuarto Tere',
+  'Cuarto',
+  'Recibidor',
+  'Patio Abajo',
+  'Hamaca',
+  'Comedor',
+  'Baño abajo',
+  'Bar',
+  'Cocina',
+  'Patio arriba',
+  'Sala Arriba',
+  'Bodega',
+  'Baño Arriba',
+  'Hotel',
+  'Oficina',
+  'Pasillo',
+  'Escaleras',
+];
+
+class LimpiacasaApp extends StatefulWidget {
   const LimpiacasaApp({super.key});
 
-  static final ValueNotifier<List<String>> _areaList = ValueNotifier<List<String>>([
-    'Afuera',
-    'Cuarto Tere',
-    'Cuarto',
-    'Recibidor',
-    'Patio Abajo',
-    'Hamaca',
-    'Comedor',
-    'Baño abajo',
-    'Bar',
-    'Cocina',
-    'Patio arriba',
-    'Sala Arriba',
-    'Bodega',
-    'Baño Arriba',
-    'Hotel',
-    'Oficina',
-    'Pasillo',
-    'Escaleras',
-  ]);
+  @override
+  State<LimpiacasaApp> createState() => _LimpiacasaAppState();
+}
+
+class _LimpiacasaAppState extends State<LimpiacasaApp> {
+  final ValueNotifier<List<String>> _areaList = ValueNotifier<List<String>>(_defaultAreas);
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAreas();
+  }
+
+  Future<void> _loadAreas() async {
+    final areas = await StorageService.loadAreas();
+    if (areas.isNotEmpty) {
+      _areaList.value = areas;
+    }
+    setState(() {
+      _initialized = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (!_initialized) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'Limpia Casa',
       theme: ThemeData(
@@ -135,6 +169,7 @@ class _TimerScreenState extends State<TimerScreen> {
   Timer? _timer;
   int _remainingSeconds = 0;
   bool _isRunning = false;
+  List<WorkEntry> _history = [];
 
   @override
   void initState() {
@@ -143,6 +178,7 @@ class _TimerScreenState extends State<TimerScreen> {
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
     widget.areaList.addListener(_onAreasChanged);
+    _refreshHistory();
   }
 
   @override
@@ -158,6 +194,7 @@ class _TimerScreenState extends State<TimerScreen> {
       setState(() {
         _currentIndex = 0;
       });
+      _history = [];
       return;
     }
     if (_currentIndex >= areas.length) {
@@ -165,6 +202,7 @@ class _TimerScreenState extends State<TimerScreen> {
         _currentIndex = areas.length - 1;
       });
     }
+    _refreshHistory();
   }
 
   void _startTimer() {
@@ -214,7 +252,7 @@ class _TimerScreenState extends State<TimerScreen> {
     return areas[index];
   }
 
-  void _randomizeArea() {
+  Future<void> _randomizeArea() async {
     final areas = widget.areaList.value;
     if (areas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,6 +260,8 @@ class _TimerScreenState extends State<TimerScreen> {
       );
       return;
     }
+
+    await _addHistoryEntry(status: 'SALTADO');
 
     _timer?.cancel();
     final random = Random();
@@ -231,6 +271,31 @@ class _TimerScreenState extends State<TimerScreen> {
     setState(() {
       _isRunning = false;
     });
+    await _refreshHistory();
+  }
+
+  Future<void> _markCompleted() async {
+    final areas = widget.areaList.value;
+    if (areas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega áreas en Configuración')),
+      );
+      return;
+    }
+
+    _timer?.cancel();
+    setState(() {
+      _isRunning = false;
+      _remainingSeconds = 0;
+    });
+
+    await _addHistoryEntry(status: 'COMPLETADO');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trabajo registrado')),
+      );
+    }
   }
 
   int _pickRandomDuration() {
@@ -238,11 +303,50 @@ class _TimerScreenState extends State<TimerScreen> {
     return _durations[random.nextInt(_durations.length)];
   }
 
+  Future<void> _refreshHistory() async {
+    final area = _areaName();
+    final entries = await StorageService.loadHistory(area);
+    if (!mounted) return;
+    setState(() {
+      _history = entries;
+    });
+  }
+
+  Future<void> _addHistoryEntry({required String status}) async {
+    final area = _areaName();
+    final entries = await StorageService.loadHistory(area);
+    final entry = WorkEntry(
+      area: area,
+      minutes: _selectedMinutes,
+      finishedAt: DateTime.now(),
+      status: status,
+    );
+
+    entries.insert(0, entry);
+    if (entries.length > 10) {
+      entries.removeRange(10, entries.length);
+    }
+
+    await StorageService.saveHistory(area, entries);
+    if (!mounted) return;
+    setState(() {
+      _history = entries;
+    });
+  }
+
   String _formatTime(int totalSeconds) {
     final minutes = totalSeconds ~/ 60;
     final seconds = totalSeconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
+
+  String _formatTimestamp(DateTime time) {
+    final date = '${time.year}-${_twoDigits(time.month)}-${_twoDigits(time.day)}';
+    final clock = '${_twoDigits(time.hour)}:${_twoDigits(time.minute)}';
+    return '$date $clock';
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +458,43 @@ class _TimerScreenState extends State<TimerScreen> {
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.check_circle_outline),
+              label: const Text('Trabajo Terminado'),
+              onPressed: _markCompleted,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Últimos 10 trabajos',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_history.isEmpty)
+              const Text('Aún no hay registros'),
+            if (_history.isNotEmpty)
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _history.length,
+                separatorBuilder: (context, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final entry = _history[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.task_alt),
+                    title: Text(entry.area),
+                    subtitle: Text('${entry.status} · ${entry.minutes} min · ${_formatTimestamp(entry.finishedAt)}'),
+                  );
+                },
+              ),
           ],
         ),
       ),
@@ -384,6 +525,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (text.isEmpty) return;
     final updated = List<String>.from(widget.areaList.value)..add(text);
     widget.areaList.value = updated;
+    StorageService.saveAreas(updated);
     _newAreaController.clear();
   }
 
@@ -397,6 +539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final updated = List<String>.from(current)..removeAt(index);
     widget.areaList.value = updated;
+    StorageService.saveAreas(updated);
   }
 
   void _renameArea(int index) async {
@@ -431,6 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final updated = List<String>.from(current);
       updated[index] = result;
       widget.areaList.value = updated;
+      StorageService.saveAreas(updated);
     }
   }
 
@@ -504,5 +648,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+}
+
+class WorkEntry {
+  WorkEntry({required this.area, required this.minutes, required this.finishedAt, required this.status});
+
+  final String area;
+  final int minutes;
+  final DateTime finishedAt;
+  final String status;
+
+  Map<String, dynamic> toJson() => {
+        'area': area,
+        'minutes': minutes,
+        'finishedAt': finishedAt.toIso8601String(),
+        'status': status,
+      };
+
+  factory WorkEntry.fromJson(Map<String, dynamic> json) {
+    return WorkEntry(
+      area: json['area'] as String? ?? 'Área',
+      minutes: json['minutes'] as int? ?? 0,
+      finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? '') ?? DateTime.now(),
+      status: json['status'] as String? ?? 'COMPLETADO',
+    );
+  }
+}
+
+class StorageService {
+  static const _areasKey = 'areas_list';
+
+  static Future<List<String>> loadAreas() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_areasKey) ?? _defaultAreas;
+  }
+
+  static Future<void> saveAreas(List<String> areas) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_areasKey, areas);
+  }
+
+  static String _historyKey(String area) => 'history_${base64Url.encode(utf8.encode(area))}';
+
+  static Future<List<WorkEntry>> loadHistory(String area) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_historyKey(area)) ?? [];
+    return raw
+        .map((e) => WorkEntry.fromJson(json.decode(e) as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<void> saveHistory(String area, List<WorkEntry> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = entries.map((e) => json.encode(e.toJson())).toList();
+    await prefs.setStringList(_historyKey(area), encoded);
   }
 }
