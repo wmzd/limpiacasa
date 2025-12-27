@@ -11,25 +11,16 @@ void main() {
 }
 
 const _defaultAreas = [
-  'Afuera',
-  'Cuarto Tere',
-  'Cuarto',
-  'Recibidor',
-  'Patio Abajo',
-  'Hamaca',
+  'Sala',
   'Comedor',
-  'Baño abajo',
-  'Bar',
   'Cocina',
-  'Patio arriba',
-  'Sala Arriba',
-  'Bodega',
-  'Baño Arriba',
-  'Hotel',
-  'Oficina',
-  'Pasillo',
-  'Escaleras',
+  'Baño',
+  'Cuarto',
+  'Afuera',
+  'Patio',
 ];
+
+const _areasVersion = 2;
 
 class LimpiacasaApp extends StatefulWidget {
   const LimpiacasaApp({super.key});
@@ -678,14 +669,30 @@ class WorkEntry {
 
 class StorageService {
   static const _areasKey = 'areas_list';
+  static const _areasVersionKey = 'areas_version';
 
   static Future<List<String>> loadAreas() async {
     final prefs = await SharedPreferences.getInstance();
+    final storedVersion = prefs.getInt(_areasVersionKey) ?? 0;
+
+    // If version changed, reset to defaults and clear histories.
+    if (storedVersion != _areasVersion) {
+      await prefs.setInt(_areasVersionKey, _areasVersion);
+      await prefs.setStringList(_areasKey, _defaultAreas);
+      // clear per-area histories
+      final keys = prefs.getKeys().where((k) => k.startsWith('history_')).toList();
+      for (final k in keys) {
+        await prefs.remove(k);
+      }
+      return _defaultAreas;
+    }
+
     return prefs.getStringList(_areasKey) ?? _defaultAreas;
   }
 
   static Future<void> saveAreas(List<String> areas) async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_areasVersionKey, _areasVersion);
     await prefs.setStringList(_areasKey, areas);
   }
 
