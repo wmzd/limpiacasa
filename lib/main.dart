@@ -79,7 +79,7 @@ class RandomNumberScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vamos a hacer un poco de quehacer'),
+        title: const Text('Hagamos quehacer'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -90,7 +90,7 @@ class RandomNumberScreen extends StatelessWidget {
                 ),
               );
             },
-            tooltip: 'Configurar áreas',
+            tooltip: 'Adminsitrar áreas y actividades',
           ),
         ],
       ),
@@ -104,14 +104,14 @@ class RandomNumberScreen extends StatelessWidget {
               const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
               const SizedBox(height: 16),
               const Text(
-                'Descubre tu destino',
+                'Vamos a empezar',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 icon: const Icon(Icons.clean_hands_outlined),
-                label: const Text('Elegir área'),
+                label: const Text('Dame una tarea'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -576,7 +576,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Configurar áreas'),
+        title: const Text('Áreas y Actividades'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -588,7 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: TextField(
                     controller: _newAreaController,
                     decoration: const InputDecoration(
-                      labelText: 'Nueva área',
+                      labelText: 'Ej. Sala de estar, Lavar los platos',
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => _addArea(),
@@ -608,7 +608,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 valueListenable: widget.areaList,
                 builder: (context, areas, child) {
                   if (areas.isEmpty) {
-                    return const Center(child: Text('No hay áreas, agrega una para empezar'));
+                    return const Center(child: Text('No hay áreas ni actividades, agrega una para empezar'));
                   }
                   return ListView.separated(
                     itemCount: areas.length,
