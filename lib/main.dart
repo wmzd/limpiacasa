@@ -101,7 +101,15 @@ class RandomNumberScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
+              SizedBox(
+                height: 140,
+                child: Image.asset(
+                  'assets/logo.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
+                ),
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Vamos a empezar',
