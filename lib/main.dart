@@ -11,6 +11,27 @@ void main() {
 class LimpiacasaApp extends StatelessWidget {
   const LimpiacasaApp({super.key});
 
+  static final ValueNotifier<List<String>> _areaList = ValueNotifier<List<String>>([
+    'Afuera',
+    'Cuarto Tere',
+    'Cuarto',
+    'Recibidor',
+    'Patio Abajo',
+    'Hamaca',
+    'Comedor',
+    'Baño abajo',
+    'Bar',
+    'Cocina',
+    'Patio arriba',
+    'Sala Arriba',
+    'Bodega',
+    'Baño Arriba',
+    'Hotel',
+    'Oficina',
+    'Pasillo',
+    'Escaleras',
+  ]);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -19,19 +40,34 @@ class LimpiacasaApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
-      home: const RandomNumberScreen(),
+      home: RandomNumberScreen(areaList: _areaList),
     );
   }
 }
 
 class RandomNumberScreen extends StatelessWidget {
-  const RandomNumberScreen({super.key});
+  const RandomNumberScreen({super.key, required this.areaList});
+
+  final ValueNotifier<List<String>> areaList;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vamos a hacer un poco de quehacer'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(areaList: areaList),
+                ),
+              );
+            },
+            tooltip: 'Configurar áreas',
+          ),
+        ],
       ),
       body: Center(
         child: Padding(
@@ -56,10 +92,20 @@ class RandomNumberScreen extends StatelessWidget {
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 onPressed: () {
-                  final randomNumber = Random().nextInt(18) + 1;
+                  final areas = areaList.value;
+                  if (areas.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Agrega al menos un área para continuar')),
+                    );
+                    return;
+                  }
+                  final randomIndex = Random().nextInt(areas.length);
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => TimerScreen(selectedNumber: randomNumber),
+                      builder: (_) => TimerScreen(
+                        selectedIndex: randomIndex,
+                        areaList: areaList,
+                      ),
                     ),
                   );
                 },
@@ -73,9 +119,10 @@ class RandomNumberScreen extends StatelessWidget {
 }
 
 class TimerScreen extends StatefulWidget {
-  const TimerScreen({super.key, required this.selectedNumber});
+  const TimerScreen({super.key, required this.selectedIndex, required this.areaList});
 
-  final int selectedNumber;
+  final int selectedIndex;
+  final ValueNotifier<List<String>> areaList;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -83,27 +130,7 @@ class TimerScreen extends StatefulWidget {
 
 class _TimerScreenState extends State<TimerScreen> {
   static const _durations = [5, 7, 10, 12, 15];
-  static const _areas = [
-    'Afuera',
-    'Cuarto Tere',
-    'Cuarto',
-    'Recibidor',
-    'Patio Abajo',
-    'Hamaca',
-    'Comedor',
-    'Baño abajo',
-    'Bar',
-    'Cocina',
-    'Patio arriba',
-    'Sala Arriba',
-    'Bodega',
-    'Baño Arriba',
-    'Hotel',
-    'Oficina',
-    'Pasillo',
-    'Escaleras',
-  ];
-  late int _currentNumber;
+  late int _currentIndex;
   int _selectedMinutes = _durations.first;
   Timer? _timer;
   int _remainingSeconds = 0;
@@ -112,15 +139,32 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
-    _currentNumber = widget.selectedNumber;
+    _currentIndex = widget.selectedIndex;
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
+    widget.areaList.addListener(_onAreasChanged);
   }
 
   @override
   void dispose() {
+    widget.areaList.removeListener(_onAreasChanged);
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _onAreasChanged() {
+    final areas = widget.areaList.value;
+    if (areas.isEmpty) {
+      setState(() {
+        _currentIndex = 0;
+      });
+      return;
+    }
+    if (_currentIndex >= areas.length) {
+      setState(() {
+        _currentIndex = areas.length - 1;
+      });
+    }
   }
 
   void _startTimer() {
@@ -164,15 +208,24 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   String _areaName() {
-    final index = _currentNumber - 1;
-    if (index < 0 || index >= _areas.length) return 'Área desconocida';
-    return _areas[index];
+    final areas = widget.areaList.value;
+    if (areas.isEmpty) return 'Área desconocida';
+    final index = _currentIndex.clamp(0, areas.length - 1);
+    return areas[index];
   }
 
   void _randomizeArea() {
+    final areas = widget.areaList.value;
+    if (areas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega áreas en Configuración')),
+      );
+      return;
+    }
+
     _timer?.cancel();
     final random = Random();
-    _currentNumber = random.nextInt(_areas.length) + 1;
+    _currentIndex = random.nextInt(areas.length);
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
     setState(() {
@@ -299,6 +352,152 @@ class _TimerScreenState extends State<TimerScreen> {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key, required this.areaList});
+
+  final ValueNotifier<List<String>> areaList;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final TextEditingController _newAreaController = TextEditingController();
+
+  @override
+  void dispose() {
+    _newAreaController.dispose();
+    super.dispose();
+  }
+
+  void _addArea() {
+    final text = _newAreaController.text.trim();
+    if (text.isEmpty) return;
+    final updated = List<String>.from(widget.areaList.value)..add(text);
+    widget.areaList.value = updated;
+    _newAreaController.clear();
+  }
+
+  void _deleteArea(int index) {
+    final current = widget.areaList.value;
+    if (current.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debe existir al menos un área')),
+      );
+      return;
+    }
+    final updated = List<String>.from(current)..removeAt(index);
+    widget.areaList.value = updated;
+  }
+
+  void _renameArea(int index) async {
+    final current = widget.areaList.value;
+    if (index < 0 || index >= current.length) return;
+    final controller = TextEditingController(text: current[index]);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Renombrar área'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Nombre del área'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final updated = List<String>.from(current);
+      updated[index] = result;
+      widget.areaList.value = updated;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Configurar áreas'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newAreaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nueva área',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _addArea(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar'),
+                  onPressed: _addArea,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ValueListenableBuilder<List<String>>(
+                valueListenable: widget.areaList,
+                builder: (context, areas, child) {
+                  if (areas.isEmpty) {
+                    return const Center(child: Text('No hay áreas, agrega una para empezar'));
+                  }
+                  return ListView.separated(
+                    itemCount: areas.length,
+                    separatorBuilder: (context, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        leading: const Icon(Icons.cleaning_services_outlined),
+                        title: Text(areas[index]),
+                        trailing: Wrap(
+                          spacing: 8,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => _renameArea(index),
+                              tooltip: 'Renombrar',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => _deleteArea(index),
+                              tooltip: 'Eliminar',
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
