@@ -31,7 +31,7 @@ class RandomNumberScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Selecciona un número'),
+        title: const Text('Vamos a hacer un poco de quehacer'),
       ),
       body: Center(
         child: Padding(
@@ -40,15 +40,17 @@ class RandomNumberScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
+              const SizedBox(height: 16),
               const Text(
-                'Genera un número aleatorio del 1 al 18',
+                'Descubre tu destino',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 32),
               ElevatedButton.icon(
-                icon: const Icon(Icons.casino_outlined),
-                label: const Text('Elegir número'),
+                icon: const Icon(Icons.clean_hands_outlined),
+                label: const Text('Elegir área'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
