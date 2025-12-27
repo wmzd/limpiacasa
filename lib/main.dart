@@ -103,6 +103,7 @@ class _TimerScreenState extends State<TimerScreen> {
     'Pasillo',
     'Escaleras',
   ];
+  late int _currentNumber;
   int _selectedMinutes = _durations.first;
   Timer? _timer;
   int _remainingSeconds = 0;
@@ -111,6 +112,7 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
+    _currentNumber = widget.selectedNumber;
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
   }
@@ -162,9 +164,20 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   String _areaName() {
-    final index = widget.selectedNumber - 1;
+    final index = _currentNumber - 1;
     if (index < 0 || index >= _areas.length) return 'Área desconocida';
     return _areas[index];
+  }
+
+  void _randomizeArea() {
+    _timer?.cancel();
+    final random = Random();
+    _currentNumber = random.nextInt(_areas.length) + 1;
+    _selectedMinutes = _pickRandomDuration();
+    _remainingSeconds = _selectedMinutes * 60;
+    setState(() {
+      _isRunning = false;
+    });
   }
 
   int _pickRandomDuration() {
@@ -183,40 +196,38 @@ class _TimerScreenState extends State<TimerScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Temporizador'),
+        title: const Text('Ahora limpiaremos:'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'Número seleccionado',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: theme.colorScheme.primaryContainer,
               ),
-              child: Text(
-                '${widget.selectedNumber}',
-                style: theme.textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
+              child: Row(
+                children: [
+                  const Icon(Icons.cleaning_services_outlined, size: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _areaName(),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              _areaName(),
-              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
             const SizedBox(height: 32),
-            Align(
-              alignment: Alignment.centerLeft,
+            Center(
               child: Text(
                 'Duración (minutos)',
                 style: theme.textTheme.titleMedium,
@@ -279,6 +290,16 @@ class _TimerScreenState extends State<TimerScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.autorenew),
+              label: const Text('Dame otra área'),
+              onPressed: _randomizeArea,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
