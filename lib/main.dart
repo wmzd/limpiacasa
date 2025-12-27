@@ -286,6 +286,9 @@ class _TimerScreenState extends State<TimerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Trabajo registrado')),
       );
+
+      // Regresa a la pantalla inicial para elegir otra actividad.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 
