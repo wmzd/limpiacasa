@@ -73,13 +73,39 @@ class _LimpiacasaAppState extends State<LimpiacasaApp> {
   }
 }
 
-class RandomNumberScreen extends StatelessWidget {
+class RandomNumberScreen extends StatefulWidget {
   const RandomNumberScreen({super.key, required this.areaList});
 
   final ValueNotifier<List<String>> areaList;
 
+  @override
+  State<RandomNumberScreen> createState() => _RandomNumberScreenState();
+}
+
+class _RandomNumberScreenState extends State<RandomNumberScreen> {
+  List<WorkEntry> _recent = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecent();
+  }
+
+  String _formatTimestamp(DateTime time) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final date = '${time.year}-${two(time.month)}-${two(time.day)}';
+    final clock = '${two(time.hour)}:${two(time.minute)}';
+    return '$date $clock';
+  }
+
+  Future<void> _loadRecent() async {
+    final entries = await StorageService.loadRecentEntries(limit: 15);
+    if (!mounted) return;
+    setState(() => _recent = entries);
+  }
+
   Future<void> _showAreaPicker(BuildContext context) async {
-    final areas = areaList.value;
+    final areas = widget.areaList.value;
     if (areas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agrega al menos un área para continuar')),
@@ -112,18 +138,49 @@ class RandomNumberScreen extends StatelessWidget {
       },
     );
 
-    if (selectedIndex == null) return;
+    if (selectedIndex == null || !context.mounted) return;
 
-    if (!context.mounted) return;
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => TimerScreen(
+              selectedIndex: selectedIndex,
+              areaList: widget.areaList,
+            ),
+          ),
+        )
+        .then((_) => _loadRecent());
+  }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TimerScreen(
-          selectedIndex: selectedIndex,
-          areaList: areaList,
-        ),
-      ),
-    );
+  void _openRandomTask(BuildContext context) {
+    final areas = widget.areaList.value;
+    if (areas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega al menos un área para continuar')),
+      );
+      return;
+    }
+    final randomIndex = Random().nextInt(areas.length);
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => TimerScreen(
+              selectedIndex: randomIndex,
+              areaList: widget.areaList,
+            ),
+          ),
+        )
+        .then((_) => _loadRecent());
+  }
+
+  void _openSettings() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => SettingsScreen(areaList: widget.areaList),
+          ),
+        )
+        .then((_) => _loadRecent());
   }
 
   @override
@@ -138,69 +195,71 @@ class RandomNumberScreen extends StatelessWidget {
             ),
             icon: const Icon(Icons.settings_outlined),
             label: const Text('Áreas y Tareas'),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SettingsScreen(areaList: areaList),
-                ),
-              );
-            },
+            onPressed: _openSettings,
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
-              const SizedBox(height: 16),
-              const Text(
-                'Vamos a empezar',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
+            const SizedBox(height: 16),
+            const Text(
+              'Vamos a empezar',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.clean_hands_outlined),
+              label: const Text('Dame una tarea'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.clean_hands_outlined),
-                label: const Text('Dame una tarea'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  final areas = areaList.value;
-                  if (areas.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Agrega al menos un área para continuar')),
-                    );
-                    return;
-                  }
-                  final randomIndex = Random().nextInt(areas.length);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TimerScreen(
-                        selectedIndex: randomIndex,
-                        areaList: areaList,
-                      ),
-                    ),
+              onPressed: () => _openRandomTask(context),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.list_alt_outlined),
+              label: const Text('Elegir'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              onPressed: () => _showAreaPicker(context),
+            ),
+            const SizedBox(height: 32),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Últimas 15 completadas',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_recent.isEmpty)
+              const Text('Aún no hay completadas'),
+            if (_recent.isNotEmpty)
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _recent.length,
+                separatorBuilder: (context, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final entry = _recent[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.check_circle_outline),
+                    title: Text(entry.area),
+                    subtitle: Text('${entry.minutes} min · ${_formatTimestamp(entry.finishedAt)}'),
                   );
                 },
               ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.list_alt_outlined),
-                label: const Text('Elegir'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                onPressed: () => _showAreaPicker(context),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -841,5 +900,30 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final encoded = entries.map((e) => json.encode(e.toJson())).toList();
     await prefs.setStringList(_historyKey(area), encoded);
+  }
+
+  static Future<List<WorkEntry>> loadRecentEntries({int limit = 15}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys().where((k) => k.startsWith('history_'));
+    final all = <WorkEntry>[];
+
+    for (final key in keys) {
+      final raw = prefs.getStringList(key) ?? [];
+      for (final item in raw) {
+        try {
+          final map = json.decode(item) as Map<String, dynamic>;
+          final entry = WorkEntry.fromJson(map);
+          if (entry.status == 'COMPLETADO') {
+            all.add(entry);
+          }
+        } catch (_) {
+          // Ignora entradas corruptas
+        }
+      }
+    }
+
+    all.sort((a, b) => b.finishedAt.compareTo(a.finishedAt));
+    if (all.length <= limit) return all;
+    return all.sublist(0, limit);
   }
 }
