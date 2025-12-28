@@ -5,8 +5,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize();
   runApp(const LimpiacasaApp());
 }
 
@@ -272,10 +275,7 @@ class _TimerScreenState extends State<TimerScreen> {
           _remainingSeconds = 0;
           _isRunning = false;
         });
-        _playAlarm();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tiempo cumplido')),
-        );
+        _handleTimerFinished();
         return;
       }
 
@@ -295,6 +295,15 @@ class _TimerScreenState extends State<TimerScreen> {
 
   void _playAlarm() {
     SystemSound.play(SystemSoundType.alert);
+  }
+
+  void _handleTimerFinished() {
+    _playAlarm();
+    NotificationService.showTimerDone(_areaName(), _selectedMinutes);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tiempo cumplido')),
+    );
   }
 
   String _areaName() {
@@ -727,6 +736,64 @@ class WorkEntry {
       minutes: json['minutes'] as int? ?? 0,
       finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? '') ?? DateTime.now(),
       status: json['status'] as String? ?? 'COMPLETADO',
+    );
+  }
+}
+
+class NotificationService {
+  static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+
+  static Future<void> initialize() async {
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const darwin = DarwinInitializationSettings();
+    const linux = LinuxInitializationSettings(defaultActionName: 'Open');
+
+    const settings = InitializationSettings(
+      android: android,
+      iOS: darwin,
+      macOS: darwin,
+      linux: linux,
+    );
+
+    await _plugin.initialize(settings);
+    await _requestPermissions();
+  }
+
+  static Future<void> _requestPermissions() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await android?.requestNotificationsPermission();
+
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    await ios?.requestPermissions(alert: true, badge: true, sound: true);
+
+    final mac = _plugin.resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
+    await mac?.requestPermissions(alert: true, badge: true, sound: true);
+  }
+
+  static Future<void> showTimerDone(String area, int minutes) async {
+    const androidDetails = AndroidNotificationDetails(
+      'timer_done_channel',
+      'Timer completado',
+      channelDescription: 'Alertas cuando termina el timer',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const darwinDetails = DarwinNotificationDetails();
+    const linuxDetails = LinuxNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+      macOS: darwinDetails,
+      linux: linuxDetails,
+    );
+
+    await _plugin.show(
+      1,
+      'Tiempo cumplido',
+      '$area listo en $minutes min',
+      details,
     );
   }
 }
