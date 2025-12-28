@@ -4,17 +4,24 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Funcionalidad
 
-- Pantalla inicial: muestra “Vamos a empezar”, permite seleccionar un área al azar con “Dame una tarea” o elegirla manualmente con “Elegir”, y abre Configuración (Áreas y Tareas).
+- Pantalla inicial: botones “Dame una tarea” (azar), “Elegir” (picker), botón “Áreas y Tareas” en appbar y menú hamburguesa con atajos.
+- Lista de últimas 15 actividades completadas bajo los botones (solo COMPLETADO).
+- Menú hamburguesa: cerrar, ir a Áreas y Tareas, ir a Timers, y switch persistente de Modo Oscuro.
 - Pantalla de temporizador:
-	- Muestra el área elegida y asigna duración aleatoria (5/7/10/12/15 min), con opción de cambiarla.
-	- Controles de iniciar/reiniciar y detener, con alarma del sistema al finalizar.
-	- Botón “Dame otra área” marca la tarea como SALTADO y selecciona otra área aleatoria.
-	- Botón “Trabajo Terminado” guarda un registro COMPLETADO, vuelve a la pantalla inicial y se muestran las últimas 10 entradas del área actual con fecha/hora.
-- Configuración: agregar, renombrar o borrar áreas. Listas e historiales se guardan en el dispositivo (SharedPreferences). Áreas por defecto: Sala, Comedor, Cocina, Baño, Cuarto, Afuera, Patio.
+	- Usa las duraciones configurables (Timers) y permite elegir entre ellas.
+	- Controles de iniciar/reiniciar y detener, con alarma del sistema y notificación al finalizar.
+	- “Dame otra área” registra SALTADO y elige otra área al azar.
+	- “Trabajo Terminado” registra COMPLETADO, vuelve a inicio y muestra historial del área (últimas 10).
+- Configuración Áreas y Tareas: agregar, renombrar o borrar áreas. Persistencia con SharedPreferences. Áreas por defecto: Sala, Comedor, Cocina, Baño, Cuarto, Afuera, Patio.
+- Pantalla Timers: agregar o borrar duraciones (minutos) usadas por el temporizador; se guardan en el dispositivo.
 
 ## Novedades
 
-- **1.1.2+14:** Se corrigió el paquete Android a mx.zdlabsmx.limpiacasa; desinstala versiones previas (com.example.limpiacasa) antes de instalar el APK actual para evitar errores de arranque.
+- **1.1.2+14:**
+	- Menú hamburguesa con “Cerrar”, atajo a Áreas y Tareas, Timers y switch Modo Oscuro (persistente).
+	- Pantalla Timers para administrar las duraciones del temporizador.
+	- Lista de últimas 15 completadas en la pantalla inicial.
+	- (Android) Paquete corregido a mx.zdlabsmx.limpiacasa; desinstala com.example.limpiacasa antes de instalar.
 - **1.1.0+13:** Selector manual de área desde la pantalla inicial (“Elegir”) y regreso automático a la pantalla inicial al completar un trabajo.
 
 ## Cómo correr
