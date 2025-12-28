@@ -187,15 +187,27 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hagamos quehacer'),
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: _openSettings,
+        ),
+        title: null,
         actions: [
-          TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _openSettings,
+              child: const Text('Áreas y Tareas'),
             ),
-            icon: const Icon(Icons.settings_outlined),
-            label: const Text('Áreas y Tareas'),
-            onPressed: _openSettings,
           ),
         ],
       ),
@@ -208,7 +220,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             const Icon(Icons.cleaning_services_outlined, size: 64, color: Colors.teal),
             const SizedBox(height: 16),
             const Text(
-              'Vamos a empezar',
+              'Hagamos quehacer',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
             ),
