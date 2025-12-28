@@ -23,6 +23,8 @@ const _defaultAreas = [
   'Patio',
 ];
 
+const _defaultDurations = [5, 7, 10, 12, 15];
+
 const _areasVersion = 2;
 
 class LimpiacasaApp extends StatefulWidget {
@@ -34,22 +36,35 @@ class LimpiacasaApp extends StatefulWidget {
 
 class _LimpiacasaAppState extends State<LimpiacasaApp> {
   final ValueNotifier<List<String>> _areaList = ValueNotifier<List<String>>(_defaultAreas);
+  final ValueNotifier<List<int>> _timerList = ValueNotifier<List<int>>(_defaultDurations);
+  final ValueNotifier<ThemeMode> _themeMode = ValueNotifier<ThemeMode>(ThemeMode.light);
   bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _loadAreas();
+    _loadInitial();
   }
 
-  Future<void> _loadAreas() async {
+  Future<void> _loadInitial() async {
     final areas = await StorageService.loadAreas();
+    final timers = await StorageService.loadTimers();
+    final theme = await StorageService.loadThemeMode();
     if (areas.isNotEmpty) {
       _areaList.value = areas;
     }
+    if (timers.isNotEmpty) {
+      _timerList.value = timers;
+    }
+    _themeMode.value = theme;
     setState(() {
       _initialized = true;
     });
+  }
+
+  void _updateTheme(ThemeMode mode) {
+    _themeMode.value = mode;
+    StorageService.saveThemeMode(mode);
   }
 
   @override
@@ -62,21 +77,40 @@ class _LimpiacasaAppState extends State<LimpiacasaApp> {
       );
     }
 
-    return MaterialApp(
-      title: 'Limpia Casa',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-        useMaterial3: true,
-      ),
-      home: RandomNumberScreen(areaList: _areaList),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _themeMode,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Limpia Casa',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+            useMaterial3: true,
+            brightness: Brightness.light,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal, brightness: Brightness.dark),
+            useMaterial3: true,
+          ),
+          themeMode: mode,
+          home: RandomNumberScreen(
+            areaList: _areaList,
+            timerList: _timerList,
+            themeMode: _themeMode,
+            onThemeChanged: _updateTheme,
+          ),
+        );
+      },
     );
   }
 }
 
 class RandomNumberScreen extends StatefulWidget {
-  const RandomNumberScreen({super.key, required this.areaList});
+  const RandomNumberScreen({super.key, required this.areaList, required this.timerList, required this.themeMode, required this.onThemeChanged});
 
   final ValueNotifier<List<String>> areaList;
+  final ValueNotifier<List<int>> timerList;
+  final ValueNotifier<ThemeMode> themeMode;
+  final void Function(ThemeMode mode) onThemeChanged;
 
   @override
   State<RandomNumberScreen> createState() => _RandomNumberScreenState();
@@ -84,10 +118,12 @@ class RandomNumberScreen extends StatefulWidget {
 
 class _RandomNumberScreenState extends State<RandomNumberScreen> {
   List<WorkEntry> _recent = [];
+  late final ValueNotifier<List<int>> _timers;
 
   @override
   void initState() {
     super.initState();
+    _timers = widget.timerList;
     _loadRecent();
   }
 
@@ -146,6 +182,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             builder: (_) => TimerScreen(
               selectedIndex: selectedIndex,
               areaList: widget.areaList,
+              timerList: _timers,
             ),
           ),
         )
@@ -167,6 +204,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             builder: (_) => TimerScreen(
               selectedIndex: randomIndex,
               areaList: widget.areaList,
+              timerList: _timers,
             ),
           ),
         )
@@ -187,11 +225,6 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: _openSettings,
-        ),
         title: null,
         actions: [
           Padding(
@@ -210,6 +243,60 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             ),
           ),
         ],
+      ),
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cerrar'),
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.cleaning_services_outlined),
+                title: const Text('Áreas y Tareas'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openSettings();
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Timers'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => TimersScreen(timerList: _timers),
+                        ),
+                      )
+                      .then((_) => _loadRecent());
+                },
+              ),
+              const Divider(height: 1),
+              ValueListenableBuilder<ThemeMode>(
+                valueListenable: widget.themeMode,
+                builder: (context, mode, _) {
+                  final isDark = mode == ThemeMode.dark;
+                  return SwitchListTile(
+                    secondary: const Icon(Icons.dark_mode_outlined),
+                    title: const Text('Modo Oscuro'),
+                    value: isDark,
+                    onChanged: (value) {
+                      final newMode = value ? ThemeMode.dark : ThemeMode.light;
+                      widget.onThemeChanged(newMode);
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -279,19 +366,21 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
 }
 
 class TimerScreen extends StatefulWidget {
-  const TimerScreen({super.key, required this.selectedIndex, required this.areaList});
+  const TimerScreen({super.key, required this.selectedIndex, required this.areaList, required this.timerList});
 
   final int selectedIndex;
   final ValueNotifier<List<String>> areaList;
+  final ValueNotifier<List<int>> timerList;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
 }
 
 class _TimerScreenState extends State<TimerScreen> {
-  static const _durations = [5, 7, 10, 12, 15];
+  List<int> get _durations => widget.timerList.value.isNotEmpty ? widget.timerList.value : _defaultDurations;
+  late final ValueNotifier<List<int>> _timerList;
   late int _currentIndex;
-  int _selectedMinutes = _durations.first;
+  int _selectedMinutes = _defaultDurations.first;
   Timer? _timer;
   int _remainingSeconds = 0;
   bool _isRunning = false;
@@ -300,16 +389,19 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
+    _timerList = widget.timerList;
     _currentIndex = widget.selectedIndex;
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
     widget.areaList.addListener(_onAreasChanged);
+    _timerList.addListener(_onDurationsChanged);
     _refreshHistory();
   }
 
   @override
   void dispose() {
     widget.areaList.removeListener(_onAreasChanged);
+    _timerList.removeListener(_onDurationsChanged);
     _timer?.cancel();
     super.dispose();
   }
@@ -329,6 +421,23 @@ class _TimerScreenState extends State<TimerScreen> {
       });
     }
     _refreshHistory();
+  }
+
+  void _onDurationsChanged() {
+    final durations = _durations;
+    if (durations.isEmpty) {
+      setState(() {
+        _selectedMinutes = _defaultDurations.first;
+        _remainingSeconds = _selectedMinutes * 60;
+      });
+      return;
+    }
+    if (!durations.contains(_selectedMinutes)) {
+      setState(() {
+        _selectedMinutes = durations.first;
+        _remainingSeconds = _selectedMinutes * 60;
+      });
+    }
   }
 
   void _startTimer() {
@@ -434,8 +543,10 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   int _pickRandomDuration() {
+    final durations = _durations;
+    if (durations.isEmpty) return _defaultDurations.first;
     final random = Random();
-    return _durations[random.nextInt(_durations.length)];
+    return durations[random.nextInt(durations.length)];
   }
 
   Future<void> _refreshHistory() async {
@@ -529,7 +640,7 @@ class _TimerScreenState extends State<TimerScreen> {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: _durations.map((minutes) {
+              children: (_durations.isNotEmpty ? _durations : _defaultDurations).map((minutes) {
                 final isSelected = _selectedMinutes == minutes;
                 return ChoiceChip(
                   label: Text('$minutes'),
@@ -644,6 +755,119 @@ class SettingsScreen extends StatefulWidget {
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class TimersScreen extends StatefulWidget {
+  const TimersScreen({super.key, required this.timerList});
+
+  final ValueNotifier<List<int>> timerList;
+
+  @override
+  State<TimersScreen> createState() => _TimersScreenState();
+}
+
+class _TimersScreenState extends State<TimersScreen> {
+  final TextEditingController _newTimerController = TextEditingController();
+
+  @override
+  void dispose() {
+    _newTimerController.dispose();
+    super.dispose();
+  }
+
+  void _addTimer() {
+    final raw = _newTimerController.text.trim();
+    if (raw.isEmpty) return;
+    final value = int.tryParse(raw);
+    if (value == null || value <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa un número de minutos válido')),
+      );
+      return;
+    }
+    final current = List<int>.from(widget.timerList.value);
+    current.add(value);
+    current.sort();
+    widget.timerList.value = current;
+    StorageService.saveTimers(current);
+    _newTimerController.clear();
+  }
+
+  void _deleteTimer(int index) {
+    final current = List<int>.from(widget.timerList.value);
+    if (current.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debe existir al menos un timer')),
+      );
+      return;
+    }
+    current.removeAt(index);
+    widget.timerList.value = current;
+    StorageService.saveTimers(current);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Timers'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newTimerController,
+                    decoration: const InputDecoration(
+                      labelText: 'Minutos (ej. 5, 10, 15)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onSubmitted: (_) => _addTimer(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar'),
+                  onPressed: _addTimer,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ValueListenableBuilder<List<int>>(
+                valueListenable: widget.timerList,
+                builder: (context, timers, child) {
+                  if (timers.isEmpty) {
+                    return const Center(child: Text('No hay timers, agrega uno para empezar'));
+                  }
+                  return ListView.separated(
+                    itemCount: timers.length,
+                    separatorBuilder: (context, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        leading: const Icon(Icons.timer_outlined),
+                        title: Text('${timers[index]} minutos'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteTimer(index),
+                          tooltip: 'Eliminar',
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
@@ -872,6 +1096,8 @@ class NotificationService {
 class StorageService {
   static const _areasKey = 'areas_list';
   static const _areasVersionKey = 'areas_version';
+  static const _timersKey = 'timers_list';
+  static const _themeKey = 'theme_mode';
 
   static Future<List<String>> loadAreas() async {
     final prefs = await SharedPreferences.getInstance();
@@ -896,6 +1122,38 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_areasVersionKey, _areasVersion);
     await prefs.setStringList(_areasKey, areas);
+  }
+
+  static Future<List<int>> loadTimers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getStringList(_timersKey);
+    if (stored == null) return _defaultDurations;
+    return stored.map((e) => int.tryParse(e) ?? 0).where((e) => e > 0).toList();
+  }
+
+  static Future<void> saveTimers(List<int> timers) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = timers.map((e) => e.toString()).toList();
+    await prefs.setStringList(_timersKey, encoded);
+  }
+
+  static Future<ThemeMode> loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_themeKey);
+    switch (stored) {
+      case 'dark':
+        return ThemeMode.dark;
+      case 'light':
+        return ThemeMode.light;
+      default:
+        return ThemeMode.light;
+    }
+  }
+
+  static Future<void> saveThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = mode == ThemeMode.dark ? 'dark' : 'light';
+    await prefs.setString(_themeKey, value);
   }
 
   static String _historyKey(String area) => 'history_${base64Url.encode(utf8.encode(area))}';
