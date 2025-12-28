@@ -12,10 +12,10 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 	- Botón “Trabajo Terminado” guarda un registro COMPLETADO, vuelve a la pantalla inicial y se muestran las últimas 10 entradas del área actual con fecha/hora.
 - Configuración: agregar, renombrar o borrar áreas. Listas e historiales se guardan en el dispositivo (SharedPreferences). Áreas por defecto: Sala, Comedor, Cocina, Baño, Cuarto, Afuera, Patio.
 
-## Novedades 1.1.0+13
+## Novedades
 
-- Selector manual de área desde la pantalla inicial (“Elegir”).
-- Al completar un trabajo, regresa automáticamente a la pantalla inicial.
+- **1.1.2+14:** Se corrigió el paquete Android a mx.zdlabsmx.limpiacasa; desinstala versiones previas (com.example.limpiacasa) antes de instalar el APK actual para evitar errores de arranque.
+- **1.1.0+13:** Selector manual de área desde la pantalla inicial (“Elegir”) y regreso automático a la pantalla inicial al completar un trabajo.
 
 ## Cómo correr
 
@@ -26,3 +26,4 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 - El sonido usa `SystemSoundType.alert`; no requiere assets.
 - El historial es por área y persiste entre sesiones; si cambias las áreas por defecto con una nueva versión, se reinicia la lista e historiales antiguos.
+- Si tuviste instalada la app con el paquete com.example.limpiacasa, desinstálala antes de instalar esta versión (paquete mx.zdlabsmx.limpiacasa) para evitar ClassNotFoundException.
