@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -376,7 +378,7 @@ class TimerScreen extends StatefulWidget {
   State<TimerScreen> createState() => _TimerScreenState();
 }
 
-class _TimerScreenState extends State<TimerScreen> {
+class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   List<int> get _durations => widget.timerList.value.isNotEmpty ? widget.timerList.value : _defaultDurations;
   late final ValueNotifier<List<int>> _timerList;
   late int _currentIndex;
@@ -385,10 +387,12 @@ class _TimerScreenState extends State<TimerScreen> {
   int _remainingSeconds = 0;
   bool _isRunning = false;
   List<WorkEntry> _history = [];
+  DateTime? _endAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _timerList = widget.timerList;
     _currentIndex = widget.selectedIndex;
     _selectedMinutes = _pickRandomDuration();
@@ -400,9 +404,12 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.areaList.removeListener(_onAreasChanged);
     _timerList.removeListener(_onDurationsChanged);
     _timer?.cancel();
+    _endAt = null;
+    NotificationService.cancelTimerDone();
     super.dispose();
   }
 
@@ -440,29 +447,36 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncRemaining();
+    }
+  }
+
+  void _syncRemaining() {
+    if (!_isRunning || _endAt == null) return;
+    final remaining = _computeRemaining();
+    if (remaining <= 0) {
+      _finishTimer();
+    } else {
+      setState(() {
+        _remainingSeconds = remaining;
+      });
+    }
+  }
+
   void _startTimer() {
     _timer?.cancel();
+    final totalSeconds = _selectedMinutes * 60;
+    _endAt = DateTime.now().add(Duration(seconds: totalSeconds));
+    NotificationService.cancelTimerDone();
+    NotificationService.scheduleTimerDone(_areaName(), _selectedMinutes, _endAt!);
     setState(() {
-      _remainingSeconds = _selectedMinutes * 60;
       _isRunning = true;
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      if (_remainingSeconds <= 1) {
-        timer.cancel();
-        setState(() {
-          _remainingSeconds = 0;
-          _isRunning = false;
-        });
-        _handleTimerFinished();
-        return;
-      }
-
-      setState(() {
-        _remainingSeconds--;
-      });
-    });
+    _tickAndSchedule();
   }
 
   void _stopTimer() {
@@ -470,7 +484,9 @@ class _TimerScreenState extends State<TimerScreen> {
     setState(() {
       _isRunning = false;
       _remainingSeconds = 0;
+      _endAt = null;
     });
+    NotificationService.cancelTimerDone();
   }
 
   void _playAlarm() {
@@ -484,6 +500,44 @@ class _TimerScreenState extends State<TimerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Tiempo cumplido')),
     );
+  }
+
+  void _tickAndSchedule() {
+    _timer?.cancel();
+    _updateRemaining();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _updateRemaining();
+    });
+  }
+
+  void _updateRemaining() {
+    if (!_isRunning || _endAt == null) return;
+    final remaining = _computeRemaining();
+    if (remaining <= 0) {
+      _finishTimer();
+    } else {
+      if (mounted) {
+        setState(() {
+          _remainingSeconds = remaining;
+        });
+      }
+    }
+  }
+
+  int _computeRemaining() {
+    if (_endAt == null) return 0;
+    return max(0, _endAt!.difference(DateTime.now()).inSeconds);
+  }
+
+  void _finishTimer() {
+    _timer?.cancel();
+    _endAt = null;
+    NotificationService.cancelTimerDone();
+    setState(() {
+      _isRunning = false;
+      _remainingSeconds = 0;
+    });
+    _handleTimerFinished();
   }
 
   String _areaName() {
@@ -505,6 +559,8 @@ class _TimerScreenState extends State<TimerScreen> {
     await _addHistoryEntry(status: 'SALTADO');
 
     _timer?.cancel();
+    await NotificationService.cancelTimerDone();
+    _endAt = null;
     final random = Random();
     _currentIndex = random.nextInt(areas.length);
     _selectedMinutes = _pickRandomDuration();
@@ -525,6 +581,8 @@ class _TimerScreenState extends State<TimerScreen> {
     }
 
     _timer?.cancel();
+    await NotificationService.cancelTimerDone();
+    _endAt = null;
     setState(() {
       _isRunning = false;
       _remainingSeconds = 0;
@@ -1037,8 +1095,11 @@ class WorkEntry {
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static const _timerDoneId = 1;
 
   static Future<void> initialize() async {
+    tz.initializeTimeZones();
+
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings();
     const linux = LinuxInitializationSettings(defaultActionName: 'Open');
@@ -1065,7 +1126,7 @@ class NotificationService {
     await mac?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
-  static Future<void> showTimerDone(String area, int minutes) async {
+  static NotificationDetails _timerDetails() {
     const androidDetails = AndroidNotificationDetails(
       'timer_done_channel',
       'Timer completado',
@@ -1077,19 +1138,39 @@ class NotificationService {
     const darwinDetails = DarwinNotificationDetails();
     const linuxDetails = LinuxNotificationDetails();
 
-    const details = NotificationDetails(
+    return const NotificationDetails(
       android: androidDetails,
       iOS: darwinDetails,
       macOS: darwinDetails,
       linux: linuxDetails,
     );
+  }
 
+  static Future<void> showTimerDone(String area, int minutes) async {
     await _plugin.show(
-      1,
+      _timerDoneId,
       'Tiempo cumplido',
       '$area listo en $minutes min',
-      details,
+      _timerDetails(),
     );
+  }
+
+  static Future<void> scheduleTimerDone(String area, int minutes, DateTime when) async {
+    final scheduled = tz.TZDateTime.from(when, tz.local);
+    await _plugin.zonedSchedule(
+      _timerDoneId,
+      'Tiempo cumplido',
+      '$area listo en $minutes min',
+      scheduled,
+      _timerDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: null,
+    );
+  }
+
+  static Future<void> cancelTimerDone() async {
+    await _plugin.cancel(_timerDoneId);
   }
 }
 
