@@ -17,6 +17,7 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Novedades
 
+- **1.2.1+20:** Se corrige el timer para que siga funcionando con la pantalla apagada/segundo plano, usando notificación programada exacta; evita que se detenga después de ~90s con la pantalla off.
 - **1.1.2+14:**
 	- Menú hamburguesa con “Cerrar”, atajo a Áreas y Tareas, Timers y switch Modo Oscuro (persistente).
 	- Pantalla Timers para administrar las duraciones del temporizador.
