@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -233,7 +235,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             padding: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 foregroundColor: Theme.of(context).colorScheme.primary,
                 elevation: 2,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -388,6 +390,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   int _elapsedSeconds = 0;
   bool _isOpenMode = false;
   bool _isRunning = false;
+  bool _hasLoggedCompletion = false;
   List<WorkEntry> _history = [];
   DateTime? _endAt;
   DateTime? _startAt;
@@ -465,7 +468,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     if (!_isRunning || _endAt == null) return;
     final remaining = _computeRemaining();
     if (remaining <= 0) {
-      _finishTimer();
+      unawaited(_finishTimer());
     } else {
       setState(() {
         _remainingSeconds = remaining;
@@ -476,6 +479,8 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   void _startTimer() {
     _timer?.cancel();
     NotificationService.cancelTimerDone();
+
+    _hasLoggedCompletion = false;
 
     if (_isOpenMode) {
       _endAt = null;
@@ -501,15 +506,21 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
 
   void _stopTimer() {
     _timer?.cancel();
+    NotificationService.cancelTimerDone();
+
+    final current = _isOpenMode ? _computeElapsed() : _computeRemaining();
+
     setState(() {
       _isRunning = false;
-      _remainingSeconds = 0;
-      _elapsedSeconds = 0;
+      if (_isOpenMode) {
+        _elapsedSeconds = current;
+      } else {
+        _remainingSeconds = current;
+      }
       _endAt = null;
       _startAt = null;
-      _isOpenMode = _isOpenMode; // keep mode selection
+      // keep _isOpenMode as is
     });
-    NotificationService.cancelTimerDone();
   }
 
   void _playAlarm() {
@@ -523,10 +534,6 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Tiempo cumplido')),
     );
-  }
-
-  void _tickAndSchedule() {
-    _startTicker();
   }
 
   void _startTicker() {
@@ -552,7 +559,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     if (_endAt == null) return;
     final remaining = _computeRemaining();
     if (remaining <= 0) {
-      _finishTimer();
+      unawaited(_finishTimer());
     } else {
       if (mounted) {
         setState(() {
@@ -563,7 +570,9 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   }
 
   int _computeRemaining() {
-    if (_endAt == null) return 0;
+    if (_endAt == null) {
+      return _remainingSeconds;
+    }
     return max(0, _endAt!.difference(DateTime.now()).inSeconds);
   }
 
@@ -572,7 +581,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     return max(0, DateTime.now().difference(_startAt!).inSeconds);
   }
 
-  void _finishTimer() {
+  Future<void> _finishTimer() async {
     _timer?.cancel();
     _endAt = null;
     _startAt = null;
@@ -582,6 +591,8 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       _remainingSeconds = 0;
       _elapsedSeconds = 0;
     });
+    await _addHistoryEntry(status: 'COMPLETADO', minutesOverride: _selectedMinutes);
+    _hasLoggedCompletion = true;
     _handleTimerFinished();
   }
 
@@ -609,6 +620,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     _startAt = null;
     _elapsedSeconds = 0;
     _isOpenMode = false;
+    _hasLoggedCompletion = false;
     final random = Random();
     _currentIndex = random.nextInt(areas.length);
     _selectedMinutes = _pickRandomDuration();
@@ -620,6 +632,15 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _markCompleted() async {
+    if (_hasLoggedCompletion) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Este trabajo ya estaba registrado')),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+      return;
+    }
     final areas = widget.areaList.value;
     if (areas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -627,6 +648,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       );
       return;
     }
+    final minutesForLog = _currentMinutesForHistory();
 
     _timer?.cancel();
     await NotificationService.cancelTimerDone();
@@ -639,7 +661,8 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       _startAt = null;
     });
 
-    await _addHistoryEntry(status: 'COMPLETADO', minutesOverride: _currentMinutesForHistory());
+    await _addHistoryEntry(status: 'COMPLETADO', minutesOverride: minutesForLog);
+      _hasLoggedCompletion = true;
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -708,7 +731,10 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       final minutes = (_computeElapsed() / 60).ceil();
       return max(1, minutes);
     }
-    return _selectedMinutes;
+    final remaining = _computeRemaining();
+    final used = (_selectedMinutes * 60 - remaining).clamp(0, _selectedMinutes * 60);
+    final minutes = (used / 60).ceil();
+    return max(1, minutes);
   }
 
   @override
@@ -1178,8 +1204,11 @@ class WorkEntry {
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static const _timerDoneId = 1;
+  static bool get _isSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isLinux);
 
   static Future<void> initialize() async {
+    if (!_isSupported) return;
+
     tz.initializeTimeZones();
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -1229,6 +1258,8 @@ class NotificationService {
   }
 
   static Future<void> showTimerDone(String area, int minutes) async {
+    if (!_isSupported) return;
+
     await _plugin.show(
       _timerDoneId,
       'Tiempo cumplido',
@@ -1238,6 +1269,8 @@ class NotificationService {
   }
 
   static Future<void> scheduleTimerDone(String area, int minutes, DateTime when) async {
+    if (!_isSupported) return;
+
     final scheduled = tz.TZDateTime.from(when, tz.local);
     await _plugin.zonedSchedule(
       _timerDoneId,
@@ -1252,6 +1285,8 @@ class NotificationService {
   }
 
   static Future<void> cancelTimerDone() async {
+    if (!_isSupported) return;
+
     await _plugin.cancel(_timerDoneId);
   }
 }

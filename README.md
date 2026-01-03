@@ -9,14 +9,19 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 - Menú hamburguesa: cerrar, ir a Áreas y Tareas, ir a Timers, y switch persistente de Modo Oscuro.
 - Pantalla de temporizador:
 	- Usa las duraciones configurables (Timers) y permite elegir entre ellas.
+	- Modo Abierto (sin tiempo) que cuenta hacia arriba.
 	- Controles de iniciar/reiniciar y detener, con alarma del sistema y notificación al finalizar.
 	- “Dame otra área” registra SALTADO y elige otra área al azar.
-	- “Trabajo Terminado” registra COMPLETADO, vuelve a inicio y muestra historial del área (últimas 10).
+	- “Trabajo Terminado” registra COMPLETADO, vuelve a inicio y muestra historial del área (últimas 10), evitando duplicados si ya se registró automáticamente.
 - Configuración Áreas y Tareas: agregar, renombrar o borrar áreas. Persistencia con SharedPreferences. Áreas por defecto: Sala, Comedor, Cocina, Baño, Cuarto, Afuera, Patio.
 - Pantalla Timers: agregar o borrar duraciones (minutos) usadas por el temporizador; se guardan en el dispositivo.
 
 ## Novedades
 
+- **1.3.0+23:**
+	- El historial se guarda automáticamente al terminar el timer sin depender del botón, y “Trabajo Terminado” evita duplicados con aviso.
+	- Modo Abierto cuenta hacia arriba y registra el tiempo real usado.
+	- Guardas de plataforma: las notificaciones se omiten en plataformas sin soporte (ej. Windows) para evitar cierres.
 - **1.2.1+20:** Se corrige el timer para que siga funcionando con la pantalla apagada/segundo plano, usando notificación programada exacta; evita que se detenga después de ~90s con la pantalla off.
 - **1.1.2+14:**
 	- Menú hamburguesa con “Cerrar”, atajo a Áreas y Tareas, Timers y switch Modo Oscuro (persistente).
