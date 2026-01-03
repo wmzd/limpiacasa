@@ -385,9 +385,12 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   int _selectedMinutes = _defaultDurations.first;
   Timer? _timer;
   int _remainingSeconds = 0;
+  int _elapsedSeconds = 0;
+  bool _isOpenMode = false;
   bool _isRunning = false;
   List<WorkEntry> _history = [];
   DateTime? _endAt;
+  DateTime? _startAt;
 
   @override
   void initState() {
@@ -397,6 +400,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     _currentIndex = widget.selectedIndex;
     _selectedMinutes = _pickRandomDuration();
     _remainingSeconds = _selectedMinutes * 60;
+    _elapsedSeconds = 0;
     widget.areaList.addListener(_onAreasChanged);
     _timerList.addListener(_onDurationsChanged);
     _refreshHistory();
@@ -409,6 +413,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     _timerList.removeListener(_onDurationsChanged);
     _timer?.cancel();
     _endAt = null;
+    _startAt = null;
     NotificationService.cancelTimerDone();
     super.dispose();
   }
@@ -436,6 +441,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       setState(() {
         _selectedMinutes = _defaultDurations.first;
         _remainingSeconds = _selectedMinutes * 60;
+        _isOpenMode = false;
       });
       return;
     }
@@ -443,6 +449,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       setState(() {
         _selectedMinutes = durations.first;
         _remainingSeconds = _selectedMinutes * 60;
+        _isOpenMode = false;
       });
     }
   }
@@ -468,15 +475,28 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
 
   void _startTimer() {
     _timer?.cancel();
-    final totalSeconds = _selectedMinutes * 60;
-    _endAt = DateTime.now().add(Duration(seconds: totalSeconds));
     NotificationService.cancelTimerDone();
+
+    if (_isOpenMode) {
+      _endAt = null;
+      _startAt = DateTime.now();
+      _elapsedSeconds = 0;
+      setState(() {
+        _isRunning = true;
+      });
+      _startTicker();
+      return;
+    }
+
+    final totalSeconds = _selectedMinutes * 60;
+    _startAt = DateTime.now();
+    _endAt = _startAt!.add(Duration(seconds: totalSeconds));
     NotificationService.scheduleTimerDone(_areaName(), _selectedMinutes, _endAt!);
     setState(() {
       _isRunning = true;
     });
 
-    _tickAndSchedule();
+    _startTicker();
   }
 
   void _stopTimer() {
@@ -484,7 +504,10 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     setState(() {
       _isRunning = false;
       _remainingSeconds = 0;
+      _elapsedSeconds = 0;
       _endAt = null;
+      _startAt = null;
+      _isOpenMode = _isOpenMode; // keep mode selection
     });
     NotificationService.cancelTimerDone();
   }
@@ -503,15 +526,30 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   }
 
   void _tickAndSchedule() {
+    _startTicker();
+  }
+
+  void _startTicker() {
     _timer?.cancel();
-    _updateRemaining();
+    _onTick();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _updateRemaining();
+      _onTick();
     });
   }
 
-  void _updateRemaining() {
-    if (!_isRunning || _endAt == null) return;
+  void _onTick() {
+    if (!_isRunning) return;
+    if (_isOpenMode) {
+      final elapsed = _computeElapsed();
+      if (mounted) {
+        setState(() {
+          _elapsedSeconds = elapsed;
+        });
+      }
+      return;
+    }
+
+    if (_endAt == null) return;
     final remaining = _computeRemaining();
     if (remaining <= 0) {
       _finishTimer();
@@ -529,13 +567,20 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     return max(0, _endAt!.difference(DateTime.now()).inSeconds);
   }
 
+  int _computeElapsed() {
+    if (_startAt == null) return _elapsedSeconds;
+    return max(0, DateTime.now().difference(_startAt!).inSeconds);
+  }
+
   void _finishTimer() {
     _timer?.cancel();
     _endAt = null;
+    _startAt = null;
     NotificationService.cancelTimerDone();
     setState(() {
       _isRunning = false;
       _remainingSeconds = 0;
+      _elapsedSeconds = 0;
     });
     _handleTimerFinished();
   }
@@ -556,11 +601,14 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
       return;
     }
 
-    await _addHistoryEntry(status: 'SALTADO');
+    await _addHistoryEntry(status: 'SALTADO', minutesOverride: _currentMinutesForHistory());
 
     _timer?.cancel();
     await NotificationService.cancelTimerDone();
     _endAt = null;
+    _startAt = null;
+    _elapsedSeconds = 0;
+    _isOpenMode = false;
     final random = Random();
     _currentIndex = random.nextInt(areas.length);
     _selectedMinutes = _pickRandomDuration();
@@ -586,9 +634,12 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     setState(() {
       _isRunning = false;
       _remainingSeconds = 0;
+      _elapsedSeconds = 0;
+      _endAt = null;
+      _startAt = null;
     });
 
-    await _addHistoryEntry(status: 'COMPLETADO');
+    await _addHistoryEntry(status: 'COMPLETADO', minutesOverride: _currentMinutesForHistory());
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -616,12 +667,12 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> _addHistoryEntry({required String status}) async {
+  Future<void> _addHistoryEntry({required String status, int? minutesOverride}) async {
     final area = _areaName();
     final entries = await StorageService.loadHistory(area);
     final entry = WorkEntry(
       area: area,
-      minutes: _selectedMinutes,
+      minutes: minutesOverride ?? _selectedMinutes,
       finishedAt: DateTime.now(),
       status: status,
     );
@@ -651,6 +702,14 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   }
 
   String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+  int _currentMinutesForHistory() {
+    if (_isOpenMode) {
+      final minutes = (_computeElapsed() / 60).ceil();
+      return max(1, minutes);
+    }
+    return _selectedMinutes;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -690,7 +749,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
             const SizedBox(height: 32),
             Center(
               child: Text(
-                'Duración (minutos)',
+                _isOpenMode ? 'Modo abierto (sin límite)' : 'Duración (minutos)',
                 style: theme.textTheme.titleMedium,
               ),
             ),
@@ -698,27 +757,50 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: (_durations.isNotEmpty ? _durations : _defaultDurations).map((minutes) {
-                final isSelected = _selectedMinutes == minutes;
-                return ChoiceChip(
-                  label: Text('$minutes'),
-                  selected: isSelected,
+              children: [
+                ...(_durations.isNotEmpty ? _durations : _defaultDurations).map((minutes) {
+                  final isSelected = !_isOpenMode && _selectedMinutes == minutes;
+                  return ChoiceChip(
+                    label: Text('$minutes'),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _isOpenMode = false;
+                          _selectedMinutes = minutes;
+                          if (!_isRunning) {
+                            _remainingSeconds = _selectedMinutes * 60;
+                          }
+                          _elapsedSeconds = 0;
+                          _endAt = null;
+                          _startAt = null;
+                        });
+                        NotificationService.cancelTimerDone();
+                      }
+                    },
+                  );
+                }),
+                ChoiceChip(
+                  label: const Text('Abierto'),
+                  selected: _isOpenMode,
                   onSelected: (selected) {
                     if (selected) {
                       setState(() {
-                        _selectedMinutes = minutes;
-                        if (!_isRunning) {
-                          _remainingSeconds = _selectedMinutes * 60;
-                        }
+                        _isOpenMode = true;
+                        _elapsedSeconds = 0;
+                        _remainingSeconds = 0;
+                        _endAt = null;
+                        _startAt = null;
                       });
+                      NotificationService.cancelTimerDone();
                     }
                   },
-                );
-              }).toList(),
+                ),
+              ],
             ),
             const SizedBox(height: 32),
             Text(
-              _formatTime(_remainingSeconds),
+              _isOpenMode ? _formatTime(_elapsedSeconds) : _formatTime(_remainingSeconds),
               style: theme.textTheme.displayLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
