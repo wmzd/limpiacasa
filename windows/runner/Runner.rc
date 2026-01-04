@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "limpiacasa" "\0"
+            VALUE "FileDescription", "LimpiaCasa" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "limpiacasa" "\0"
+            VALUE "InternalName", "LimpiaCasa" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "limpiacasa.exe" "\0"
-            VALUE "ProductName", "limpiacasa" "\0"
+            VALUE "OriginalFilename", "LimpiaCasa.exe" "\0"
+            VALUE "ProductName", "LimpiaCasa" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

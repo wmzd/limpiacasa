@@ -1,6 +1,6 @@
 {
-    "name": "limpiacasa",
-    "short_name": "limpiacasa",
+    "name": "LimpiaCasa",
+    "short_name": "LimpiaCasa",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
