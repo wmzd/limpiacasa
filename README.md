@@ -18,6 +18,8 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Novedades
 
+- **1.3.2+25:**
+	- **Splash Screen Nativo:** Configurado splash screen profesional con fondo oscuro (#121212) y logo centrado usando `flutter_native_splash`. Incluye soporte para Android 12+ y iOS, eliminando el flash blanco/negro al abrir la app.
 - **1.3.0+23:**
 	- El historial se guarda automáticamente al terminar el timer sin depender del botón, y “Trabajo Terminado” evita duplicados con aviso.
 	- Modo Abierto cuenta hacia arriba y registra el tiempo real usado.
@@ -37,6 +39,7 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Notas
 
+- El splash screen usa el logo de la app (`assets/logo.png`) centrado en un fondo oscuro (#121212). Soporta Android 12+ y iOS con configuración nativa.
 - El sonido usa `SystemSoundType.alert`; no requiere assets.
 - El historial es por área y persiste entre sesiones; si cambias las áreas por defecto con una nueva versión, se reinicia la lista e historiales antiguos.
 - Si tuviste instalada la app con el paquete com.example.limpiacasa, desinstálala antes de instalar esta versión (paquete mx.zdlabsmx.limpiacasa) para evitar ClassNotFoundException.
