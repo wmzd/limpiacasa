@@ -4,10 +4,10 @@ import 'dart:math';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -390,7 +390,9 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   int _elapsedSeconds = 0;
   bool _isOpenMode = false;
   bool _isRunning = false;
+  bool _isAlarmPlaying = false;
   bool _hasLoggedCompletion = false;
+  final FlutterRingtonePlayer _ringtonePlayer = FlutterRingtonePlayer();
   List<WorkEntry> _history = [];
   DateTime? _endAt;
   DateTime? _startAt;
@@ -415,6 +417,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     widget.areaList.removeListener(_onAreasChanged);
     _timerList.removeListener(_onDurationsChanged);
     _timer?.cancel();
+    unawaited(_stopAlarmSound());
     _endAt = null;
     _startAt = null;
     NotificationService.cancelTimerDone();
@@ -455,6 +458,24 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
         _isOpenMode = false;
       });
     }
+  }
+
+  Future<void> _startAlarmSound() async {
+    if (_isAlarmPlaying) return;
+    _isAlarmPlaying = true;
+    await _ringtonePlayer.play(
+      android: AndroidSounds.alarm,
+      ios: IosSounds.alarm,
+      looping: true,
+      volume: 1.0,
+      asAlarm: true,
+    );
+  }
+
+  Future<void> _stopAlarmSound() async {
+    if (!_isAlarmPlaying) return;
+    _isAlarmPlaying = false;
+    await _ringtonePlayer.stop();
   }
 
   @override
@@ -507,6 +528,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
   void _stopTimer() {
     _timer?.cancel();
     NotificationService.cancelTimerDone();
+    unawaited(_stopAlarmSound());
 
     final current = _isOpenMode ? _computeElapsed() : _computeRemaining();
 
@@ -523,16 +545,29 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     });
   }
 
-  void _playAlarm() {
-    SystemSound.play(SystemSoundType.alert);
-  }
-
-  void _handleTimerFinished() {
-    _playAlarm();
-    NotificationService.showTimerDone(_areaName(), _selectedMinutes);
+  Future<void> _handleTimerFinished() async {
+    await _startAlarmSound();
+    await NotificationService.showTimerDone(_areaName(), _selectedMinutes);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tiempo cumplido')),
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Tiempo cumplido'),
+          content: Text('${_areaName()} terminado. Detén la alarma cuando hayas terminado.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _stopAlarmSound();
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Detener'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -593,7 +628,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     });
     await _addHistoryEntry(status: 'COMPLETADO', minutesOverride: _selectedMinutes);
     _hasLoggedCompletion = true;
-    _handleTimerFinished();
+    await _handleTimerFinished();
   }
 
   String _areaName() {
@@ -616,6 +651,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
 
     _timer?.cancel();
     await NotificationService.cancelTimerDone();
+    await _stopAlarmSound();
     _endAt = null;
     _startAt = null;
     _elapsedSeconds = 0;
