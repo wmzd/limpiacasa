@@ -686,7 +686,7 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     final entries = await StorageService.loadHistory(area);
     if (!mounted) return;
     setState(() {
-      _history = entries;
+      _history = entries.take(10).toList();
     });
   }
 
@@ -701,14 +701,11 @@ class _TimerScreenState extends State<TimerScreen> with WidgetsBindingObserver {
     );
 
     entries.insert(0, entry);
-    if (entries.length > 10) {
-      entries.removeRange(10, entries.length);
-    }
 
     await StorageService.saveHistory(area, entries);
     if (!mounted) return;
     setState(() {
-      _history = entries;
+      _history = entries.take(10).toList();
     });
   }
 
