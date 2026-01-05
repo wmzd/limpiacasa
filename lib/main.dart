@@ -122,13 +122,14 @@ class RandomNumberScreen extends StatefulWidget {
 
 class _RandomNumberScreenState extends State<RandomNumberScreen> {
   List<WorkEntry> _recent = [];
+  DashboardStats _stats = DashboardStats.empty();
   late final ValueNotifier<List<int>> _timers;
 
   @override
   void initState() {
     super.initState();
     _timers = widget.timerList;
-    _loadRecent();
+    _loadDashboard();
   }
 
   String _formatTimestamp(DateTime time) {
@@ -138,10 +139,14 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
     return '$date $clock';
   }
 
-  Future<void> _loadRecent() async {
+  Future<void> _loadDashboard() async {
     final entries = await StorageService.loadRecentEntries(limit: 15);
+    final stats = await StorageService.computeDashboardStats(widget.areaList.value);
     if (!mounted) return;
-    setState(() => _recent = entries);
+    setState(() {
+      _recent = entries;
+      _stats = stats;
+    });
   }
 
   Future<void> _showAreaPicker(BuildContext context) async {
@@ -190,7 +195,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             ),
           ),
         )
-        .then((_) => _loadRecent());
+          .then((_) => _loadDashboard());
   }
 
   void _openRandomTask(BuildContext context) {
@@ -212,7 +217,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             ),
           ),
         )
-        .then((_) => _loadRecent());
+          .then((_) => _loadDashboard());
   }
 
   void _openSettings() {
@@ -222,7 +227,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
             builder: (_) => SettingsScreen(areaList: widget.areaList),
           ),
         )
-        .then((_) => _loadRecent());
+          .then((_) => _loadDashboard());
   }
 
   @override
@@ -279,7 +284,7 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
                           builder: (_) => TimersScreen(timerList: _timers),
                         ),
                       )
-                      .then((_) => _loadRecent());
+                      .then((_) => _loadDashboard());
                 },
               ),
               const Divider(height: 1),
@@ -371,7 +376,66 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Estadísticas',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth = (constraints.maxWidth - 12) / 2; // 2 por fila con 12px de espacio
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.start,
+                  children: [
+                    _KpiCard(label: 'Tareas completadas', value: _stats.completedTasks.toString(), width: cardWidth),
+                    _KpiCard(label: 'Minutos totales', value: _stats.totalMinutes.toString(), width: cardWidth),
+                    _KpiCard(label: 'Racha actual', value: '${_stats.currentStreak} días', width: cardWidth),
+                    _KpiCard(label: 'Minutos esta semana', value: _stats.minutesThisWeek.toString(), width: cardWidth),
+                    _KpiCard(label: 'Tareas del mes', value: _stats.tasksThisMonth.toString(), width: cardWidth),
+                    _KpiCard(label: 'Área más limpiada', value: _stats.topCleanArea ?? '—', width: cardWidth),
+                    _KpiCard(label: 'Área más saltada', value: _stats.topSkippedArea ?? '—', width: cardWidth),
+                    _KpiCard(label: 'Tarea con más minutos', value: _stats.longestTaskLabel ?? '—', width: cardWidth),
+                  ],
+                );
+              },
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({required this.label, required this.value, required this.width});
+
+  final String label;
+  final String value;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 1,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 6),
+              Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
         ),
       ),
     );
@@ -1243,6 +1307,39 @@ class WorkEntry {
   }
 }
 
+class DashboardStats {
+  const DashboardStats({
+    required this.completedTasks,
+    required this.totalMinutes,
+    required this.currentStreak,
+    required this.topCleanArea,
+    required this.topSkippedArea,
+    required this.minutesThisWeek,
+    required this.tasksThisMonth,
+    required this.longestTaskLabel,
+  });
+
+  final int completedTasks;
+  final int totalMinutes;
+  final int currentStreak;
+  final String? topCleanArea;
+  final String? topSkippedArea;
+  final int minutesThisWeek;
+  final int tasksThisMonth;
+  final String? longestTaskLabel;
+
+  factory DashboardStats.empty() => const DashboardStats(
+        completedTasks: 0,
+        totalMinutes: 0,
+        currentStreak: 0,
+        topCleanArea: null,
+        topSkippedArea: null,
+        minutesThisWeek: 0,
+        tasksThisMonth: 0,
+        longestTaskLabel: null,
+      );
+}
+
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static const _timerDoneId = 1;
@@ -1375,6 +1472,89 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final encoded = timers.map((e) => e.toString()).toList();
     await prefs.setStringList(_timersKey, encoded);
+  }
+
+  static Future<List<WorkEntry>> loadAllHistories(List<String> areas) async {
+    final histories = <WorkEntry>[];
+    for (final area in areas) {
+      final entries = await loadHistory(area);
+      histories.addAll(entries);
+    }
+    histories.sort((a, b) => b.finishedAt.compareTo(a.finishedAt));
+    return histories;
+  }
+
+  static Future<DashboardStats> computeDashboardStats(List<String> areas) async {
+    final entries = await loadAllHistories(areas.isEmpty ? _defaultAreas : areas);
+    if (entries.isEmpty) return DashboardStats.empty();
+
+    final completed = entries.where((e) => e.status == 'COMPLETADO').toList();
+    final skipped = entries.where((e) => e.status == 'SALTADO').toList();
+
+    final totalMinutes = completed.fold<int>(0, (sum, e) => sum + e.minutes);
+
+    // streak
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final completedDates = completed
+        .map((e) => DateTime(e.finishedAt.year, e.finishedAt.month, e.finishedAt.day))
+        .toSet();
+    int streak = 0;
+    var cursor = todayDate;
+    while (completedDates.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+
+    // area counts
+    final cleanCounts = <String, int>{};
+    for (final e in completed) {
+      cleanCounts[e.area] = (cleanCounts[e.area] ?? 0) + 1;
+    }
+    final skipCounts = <String, int>{};
+    for (final e in skipped) {
+      skipCounts[e.area] = (skipCounts[e.area] ?? 0) + 1;
+    }
+    String? topCleanArea;
+    if (cleanCounts.isNotEmpty) {
+      topCleanArea = cleanCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    }
+    String? topSkippedArea;
+    if (skipCounts.isNotEmpty) {
+      topSkippedArea = skipCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    }
+
+    String? longestTaskLabel;
+    if (completed.isNotEmpty) {
+      final byArea = <String, int>{};
+      for (final e in completed) {
+        byArea[e.area] = (byArea[e.area] ?? 0) + e.minutes;
+      }
+      final top = byArea.entries.reduce((a, b) => a.value >= b.value ? a : b);
+      longestTaskLabel = '${top.key} · ${top.value} min';
+    }
+
+    // minutes this week (last 7 days including today)
+    final weekStart = todayDate.subtract(const Duration(days: 6));
+    final minutesThisWeek = completed
+        .where((e) => e.finishedAt.isAfter(weekStart.subtract(const Duration(seconds: 1))))
+        .fold<int>(0, (sum, e) => sum + e.minutes);
+
+    // tasks this month
+    final tasksThisMonth = completed
+        .where((e) => e.finishedAt.year == today.year && e.finishedAt.month == today.month)
+        .length;
+
+    return DashboardStats(
+      completedTasks: completed.length,
+      totalMinutes: totalMinutes,
+      currentStreak: streak,
+      topCleanArea: topCleanArea,
+      topSkippedArea: topSkippedArea,
+      minutesThisWeek: minutesThisWeek,
+      tasksThisMonth: tasksThisMonth,
+      longestTaskLabel: longestTaskLabel,
+    );
   }
 
   static Future<ThemeMode> loadThemeMode() async {

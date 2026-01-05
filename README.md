@@ -18,6 +18,10 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Novedades
 
+- **1.4.0+35:**
+	- Tarjeta de “Últimas 15 completadas” colapsable con scroll interno.
+	- Sección de “Estadísticas” con KPIs (tareas, minutos totales, racha, semana, mes, áreas más limpiada/saltada, tarea con más minutos acumulados) acomodadas en 2 por fila.
+	- Flujo de alarma: se espera a que arranque el tono del sistema antes de mostrar el diálogo de Detener para mayor confiabilidad.
 - **1.3.4:**
 	- Sección “Últimas 15 completadas” ahora en tarjeta colapsable con lista scrollable interna (cerrada por defecto) para que no alargue la pantalla inicial.
 	- Ajuste de flujo de alarma al finalizar: se espera el inicio del tono del sistema antes de mostrar el diálogo de Detener para mayor confiabilidad.
