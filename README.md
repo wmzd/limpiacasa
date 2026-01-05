@@ -18,6 +18,9 @@ App Flutter para asignar áreas de limpieza al azar o elegirlas manualmente y ll
 
 ## Novedades
 
+- **1.3.4:**
+	- Sección “Últimas 15 completadas” ahora en tarjeta colapsable con lista scrollable interna (cerrada por defecto) para que no alargue la pantalla inicial.
+	- Ajuste de flujo de alarma al finalizar: se espera el inicio del tono del sistema antes de mostrar el diálogo de Detener para mayor confiabilidad.
 - **1.3.3+32:**
 	- Alarma del sistema usando `flutter_ringtone_player` en loop hasta que se presione "Detener"; se retira el botón de snooze.
 	- Historial completo se sigue guardando, mostrando solo las últimas 15 en inicio y 10 por área en detalles.
