@@ -149,6 +149,14 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
     });
   }
 
+  String _formatMinutes(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (mins == 0) return '$hours h';
+    return '$hours h $mins min';
+  }
+
   Future<void> _showAreaPicker(BuildContext context) async {
     final areas = widget.areaList.value;
     if (areas.isEmpty) {
@@ -393,14 +401,21 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
                   runSpacing: 12,
                   alignment: WrapAlignment.start,
                   children: [
-                    _KpiCard(label: 'Tareas completadas', value: _stats.completedTasks.toString(), width: cardWidth),
-                    _KpiCard(label: 'Minutos totales', value: _stats.totalMinutes.toString(), width: cardWidth),
-                    _KpiCard(label: 'Racha actual', value: '${_stats.currentStreak} días', width: cardWidth),
-                    _KpiCard(label: 'Minutos esta semana', value: _stats.minutesThisWeek.toString(), width: cardWidth),
-                    _KpiCard(label: 'Tareas del mes', value: _stats.tasksThisMonth.toString(), width: cardWidth),
-                    _KpiCard(label: 'Área más limpiada', value: _stats.topCleanArea ?? '—', width: cardWidth),
-                    _KpiCard(label: 'Área más saltada', value: _stats.topSkippedArea ?? '—', width: cardWidth),
-                    _KpiCard(label: 'Tarea con más minutos', value: _stats.longestTaskLabel ?? '—', width: cardWidth),
+                    _KpiCard(label: 'Tareas completadas', value: _stats.completedTasks.toString(), width: cardWidth, icon: Icons.check_circle_outline, iconColor: Colors.greenAccent),
+                    _KpiCard(label: 'Minutos totales', value: _formatMinutes(_stats.totalMinutes), width: cardWidth, icon: Icons.schedule_outlined),
+                    _KpiCard(label: 'Racha actual', value: '${_stats.currentStreak} días', width: cardWidth, icon: Icons.local_fire_department_outlined, iconColor: Colors.deepOrangeAccent),
+                    _KpiCard(label: 'Minutos esta semana', value: _formatMinutes(_stats.minutesThisWeek), width: cardWidth, icon: Icons.calendar_view_week_outlined),
+                    _KpiCard(label: 'Tareas del mes', value: _stats.tasksThisMonth.toString(), width: cardWidth, icon: Icons.calendar_month_outlined),
+                    _KpiCard(label: 'Área más limpiada', value: _stats.topCleanArea ?? '—', width: cardWidth, icon: Icons.cleaning_services_outlined),
+                    _KpiCard(label: 'Área más saltada', value: _stats.topSkippedArea ?? '—', width: cardWidth, icon: Icons.close_outlined, iconColor: Colors.redAccent),
+                    _KpiCard(
+                      label: 'Tarea con más minutos',
+                      value: _stats.longestTaskArea == null || _stats.longestTaskMinutes == null
+                          ? '—'
+                          : '${_stats.longestTaskArea} · ${_formatMinutes(_stats.longestTaskMinutes!)}',
+                      width: cardWidth,
+                      icon: Icons.hourglass_bottom_outlined,
+                    ),
                   ],
                 );
               },
@@ -413,11 +428,13 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
 }
 
 class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, required this.width});
+  const _KpiCard({required this.label, required this.value, required this.width, required this.icon, this.iconColor});
 
   final String label;
   final String value;
   final double width;
+  final IconData icon;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -431,7 +448,13 @@ class _KpiCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: Theme.of(context).textTheme.labelLarge),
+              Row(
+                children: [
+                  Icon(icon, size: 18, color: iconColor ?? Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(label, style: Theme.of(context).textTheme.labelLarge)),
+                ],
+              ),
               const SizedBox(height: 6),
               Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
             ],
@@ -1316,7 +1339,8 @@ class DashboardStats {
     required this.topSkippedArea,
     required this.minutesThisWeek,
     required this.tasksThisMonth,
-    required this.longestTaskLabel,
+    required this.longestTaskArea,
+    required this.longestTaskMinutes,
   });
 
   final int completedTasks;
@@ -1326,7 +1350,8 @@ class DashboardStats {
   final String? topSkippedArea;
   final int minutesThisWeek;
   final int tasksThisMonth;
-  final String? longestTaskLabel;
+  final String? longestTaskArea;
+  final int? longestTaskMinutes;
 
   factory DashboardStats.empty() => const DashboardStats(
         completedTasks: 0,
@@ -1336,7 +1361,8 @@ class DashboardStats {
         topSkippedArea: null,
         minutesThisWeek: 0,
         tasksThisMonth: 0,
-        longestTaskLabel: null,
+        longestTaskArea: null,
+        longestTaskMinutes: null,
       );
 }
 
@@ -1524,14 +1550,16 @@ class StorageService {
       topSkippedArea = skipCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
     }
 
-    String? longestTaskLabel;
+    String? longestTaskArea;
+    int? longestTaskMinutes;
     if (completed.isNotEmpty) {
       final byArea = <String, int>{};
       for (final e in completed) {
         byArea[e.area] = (byArea[e.area] ?? 0) + e.minutes;
       }
       final top = byArea.entries.reduce((a, b) => a.value >= b.value ? a : b);
-      longestTaskLabel = '${top.key} · ${top.value} min';
+      longestTaskArea = top.key;
+      longestTaskMinutes = top.value;
     }
 
     // minutes this week (last 7 days including today)
@@ -1553,7 +1581,8 @@ class StorageService {
       topSkippedArea: topSkippedArea,
       minutesThisWeek: minutesThisWeek,
       tasksThisMonth: tasksThisMonth,
-      longestTaskLabel: longestTaskLabel,
+      longestTaskArea: longestTaskArea,
+      longestTaskMinutes: longestTaskMinutes,
     );
   }
 
