@@ -336,32 +336,41 @@ class _RandomNumberScreenState extends State<RandomNumberScreen> {
               onPressed: () => _showAreaPicker(context),
             ),
             const SizedBox(height: 32),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Últimas 15 completadas',
-                style: Theme.of(context).textTheme.titleMedium,
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 1.5,
+              child: ExpansionTile(
+                initiallyExpanded: false,
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                title: const Text('Últimas 15 completadas'),
+                subtitle: Text(_recent.isEmpty ? 'Aún no hay completadas' : 'Despliega para ver el historial'),
+                children: [
+                  if (_recent.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Text('Aún no hay completadas'),
+                    )
+                  else
+                    SizedBox(
+                      height: 280,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: _recent.length,
+                        separatorBuilder: (context, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final entry = _recent[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.check_circle_outline),
+                            title: Text(entry.area),
+                            subtitle: Text('${entry.minutes} min · ${_formatTimestamp(entry.finishedAt)}'),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            if (_recent.isEmpty)
-              const Text('Aún no hay completadas'),
-            if (_recent.isNotEmpty)
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _recent.length,
-                separatorBuilder: (context, _) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final entry = _recent[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.check_circle_outline),
-                    title: Text(entry.area),
-                    subtitle: Text('${entry.minutes} min · ${_formatTimestamp(entry.finishedAt)}'),
-                  );
-                },
-              ),
           ],
         ),
       ),
